@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.jcnotes.data.model.Note
@@ -63,6 +64,119 @@ fun HomeScreen(
     val searchBackgroundColor = if (isDarkTheme) Color(0xFF2A2A2A) else Color(0xFFF5F5F5)
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Search Bar
+        AnimatedVisibility(
+            visible = isSearchActive,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(backgroundColor)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 40.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.setSearchActive(false) },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Close Search",
+                                tint = iconTint,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.updateSearchQuery(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = searchBackgroundColor,
+                                unfocusedContainerColor = searchBackgroundColor,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            placeholder = {
+                                Text(
+                                    "Notlarda ara...",
+                                    color = contentColor.copy(alpha = 0.6f)
+                                )
+                            },
+                            textStyle = TextStyle(
+                                fontSize = 16.sp,
+                                color = textColor
+                            ),
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+
+                    // Arama sonuçları
+                    val filteredNotes = notes.filter { note ->
+                        searchQuery.isNotEmpty() && (
+                            note.title.contains(searchQuery, ignoreCase = true) ||
+                            note.content.contains(searchQuery, ignoreCase = true)
+                        )
+                    }
+
+                    if (searchQuery.isNotEmpty()) {
+                        if (filteredNotes.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Sonuç bulunamadı",
+                                    color = contentColor,
+                                    style = TextStyle(
+                                        fontSize = 16.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp)
+                                    .padding(top = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(filteredNotes) { note ->
+                                    ModernNoteCard(
+                                        note = note,
+                                        isGridView = false,
+                                        onClick = { onNavigateToNote(note.id) },
+                                        onFavoriteClick = { viewModel.toggleFavorite(note) },
+                                        isDarkTheme = isDarkTheme
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Drawer
         AnimatedVisibility(
             visible = showDrawer,
@@ -73,7 +187,8 @@ fun HomeScreen(
             exit = slideOutHorizontally(
                 targetOffsetX = { -it },
                 animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-            )
+            ),
+            modifier = Modifier.zIndex(1f)
         ) {
             Box(
                 modifier = Modifier
@@ -81,256 +196,318 @@ fun HomeScreen(
                     .background(Color.Black.copy(alpha = 0.5f))
                     .clickable { viewModel.closeDrawer() }
             ) {
-                Surface(
+                Card(
                     modifier = Modifier
                         .width(280.dp)
                         .fillMaxHeight()
-                        .align(Alignment.CenterStart),
-                    color = if (isDarkTheme) Color(0xFF121212) else Color.White,
-                    shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
-                ) {
-                    NavigationDrawer(
-                        onClose = { viewModel.closeDrawer() },
-                        onNavigateToNote = onNavigateToNote,
-                        isDarkTheme = isDarkTheme
+                        .clickable(enabled = false) { },
+                    shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDarkTheme) Color(0xFF121212) else Color.White
                     )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Drawer başlığı
+                        Text(
+                            text = "JCNotes",
+                            style = TextStyle(
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textColor
+                            ),
+                            modifier = Modifier.padding(vertical = 24.dp)
+                        )
+                        
+                        // Drawer menü öğeleri
+                        DrawerMenuItem(
+                            icon = Icons.Default.Home,
+                            title = "Tüm Notlar",
+                            isSelected = true,
+                            isDarkTheme = isDarkTheme,
+                            accentColor = Color(0xFF5E35B1)
+                        ) { viewModel.closeDrawer() }
+                        
+                        DrawerMenuItem(
+                            icon = Icons.Default.Star,
+                            title = "Favoriler",
+                            isDarkTheme = isDarkTheme,
+                            accentColor = Color(0xFF5E35B1)
+                        ) { viewModel.closeDrawer() }
+                        
+                        DrawerMenuItem(
+                            icon = Icons.Default.Delete,
+                            title = "Çöp Kutusu",
+                            isDarkTheme = isDarkTheme,
+                            accentColor = Color(0xFF5E35B1)
+                        ) { viewModel.closeDrawer() }
+                        
+                        Divider(
+                            modifier = Modifier.padding(vertical = 16.dp),
+                            color = if (isDarkTheme) Color(0xFF444444) else Color.LightGray
+                        )
+                        
+                        DrawerMenuItem(
+                            icon = Icons.Default.Settings,
+                            title = "Ayarlar",
+                            isDarkTheme = isDarkTheme,
+                            accentColor = Color(0xFF5E35B1)
+                        ) { viewModel.closeDrawer() }
+                        
+                        DrawerMenuItem(
+                            icon = Icons.Default.Info,
+                            title = "Hakkında",
+                            isDarkTheme = isDarkTheme,
+                            accentColor = Color(0xFF5E35B1)
+                        ) { viewModel.closeDrawer() }
+                    }
                 }
             }
         }
 
-        Scaffold(
-            modifier = Modifier
-                .fillMaxSize(),
-            containerColor = backgroundColor,
-            contentColor = textColor,
-            topBar = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 40.dp)
-                ) {
-                    // Row 1: Başlık ve not sayısı
+        // Main Content
+        AnimatedVisibility(
+            visible = !isSearchActive,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Scaffold(
+                modifier = Modifier
+                    .fillMaxSize(),
+                containerColor = backgroundColor,
+                contentColor = textColor,
+                topBar = {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(top = 40.dp)
                     ) {
-                        Text(
-                            text = "All Notes",
-                            style = TextStyle(
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textColor,
-                                textAlign = TextAlign.Center
-                            )
-                        )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "${notes.size} notes",
-                            style = TextStyle(
-                                fontSize = 16.sp,
-                                color = contentColor,
-                                textAlign = TextAlign.Center
-                            )
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Row 2: Menü ve arama ikonları
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { viewModel.toggleDrawer() },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Menu,
-                                contentDescription = "Menu",
-                                tint = iconTint,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                        
-                        IconButton(
-                            onClick = { viewModel.setSearchActive(true) },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = iconTint,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                    
-                    // Row 3: Grid ve filtre ikonları
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { viewModel.toggleGridView() },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isGridView) Icons.Default.Star else Icons.Default.Star,
-                                contentDescription = "Change View",
-                                tint = iconTint.copy(alpha = 0.7f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.width(12.dp))
-                        
-                        IconButton(
-                            onClick = { viewModel.toggleFilterDialog() },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Filter",
-                                tint = iconTint.copy(alpha = 0.7f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                }
-            },
-            floatingActionButton = {
-                Box(
-                    modifier = Modifier
-                        .padding(bottom = 24.dp, end = 8.dp)
-                        .offset(y = (-8).dp)
-                ) {
-                    FloatingActionButton(
-                        onClick = { onNavigateToAddNote() },
-                        containerColor = Color(0xFF2196F3), // Material Blue
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add Note",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            },
-            floatingActionButtonPosition = FabPosition.End
-        ) { paddingValues ->
-            // Not listesi
-            val filteredNotes = notes.filter { note ->
-                searchQuery.isEmpty() || note.title.contains(searchQuery, ignoreCase = true) ||
-                        note.content.contains(searchQuery, ignoreCase = true)
-            }
-
-            if (isGridView) {
-                LazyVerticalStaggeredGrid(
-                    columns = StaggeredGridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalItemSpacing = 20.dp
-                ) {
-                    items(filteredNotes) { note ->
-                        ModernNoteCard(
-                            note = note,
-                            isGridView = true,
-                            onClick = { onNavigateToNote(note.id) },
-                            onFavoriteClick = { viewModel.toggleFavorite(note) },
-                            isDarkTheme = isDarkTheme
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    items(filteredNotes) { note ->
-                        ModernNoteCard(
-                            note = note,
-                            isGridView = false,
-                            onClick = { onNavigateToNote(note.id) },
-                            onFavoriteClick = { viewModel.toggleFavorite(note) },
-                            isDarkTheme = isDarkTheme
-                        )
-                    }
-                }
-            }
-
-            // Filtre dialog
-            if (showFilterDialog) {
-                AlertDialog(
-                    onDismissRequest = { viewModel.toggleFilterDialog() },
-                    title = { Text("Sıralama", style = MaterialTheme.typography.titleLarge) },
-                    containerColor = if (isDarkTheme) Color(0xFF2A2A2A) else Color.White,
-                    titleContentColor = textColor,
-                    textContentColor = contentColor,
-                    shape = RoundedCornerShape(24.dp),
-                    text = {
+                        // Row 1: Başlık ve not sayısı
                         Column(
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        ) {
-                            SortOption(
-                                title = "Tarihe göre",
-                                isSelected = true,
-                                isDarkTheme = isDarkTheme
-                            ) { viewModel.sortNotes(HomeViewModel.SortOrder.DATE) }
-                            
-                            SortOption(
-                                title = "Başlığa göre",
-                                isSelected = false,
-                                isDarkTheme = isDarkTheme
-                            ) { viewModel.sortNotes(HomeViewModel.SortOrder.TITLE) }
-                            
-                            SortOption(
-                                title = "Renge göre",
-                                isSelected = false,
-                                isDarkTheme = isDarkTheme
-                            ) { viewModel.sortNotes(HomeViewModel.SortOrder.COLOR) }
-                            
-                            SortOption(
-                                title = "Favorilere göre",
-                                isSelected = false,
-                                isDarkTheme = isDarkTheme
-                            ) { viewModel.sortNotes(HomeViewModel.SortOrder.FAVORITE) }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = { viewModel.toggleFilterDialog() }
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(bottom = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                "Tamam",
-                                color = Color(0xFF5E35B1),
-                                style = MaterialTheme.typography.labelLarge
+                                text = "All Notes",
+                                style = TextStyle(
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textColor,
+                                    textAlign = TextAlign.Center
+                                )
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Text(
+                                text = "${notes.size} notes",
+                                style = TextStyle(
+                                    fontSize = 16.sp,
+                                    color = contentColor,
+                                    textAlign = TextAlign.Center
+                                )
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Row 2: Menü ve arama ikonları
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(bottom = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.toggleDrawer() },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Menu",
+                                    tint = iconTint,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            
+                            IconButton(
+                                onClick = { viewModel.setSearchActive(true) },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = iconTint,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                        
+                        // Row 3: Grid ve filtre ikonları
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .padding(bottom = 16.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.toggleGridView() },
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isGridView) Icons.Default.Star else Icons.Default.Star,
+                                    contentDescription = "Change View",
+                                    tint = iconTint.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(12.dp))
+                            
+                            IconButton(
+                                onClick = { viewModel.toggleFilterDialog() },
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Filter",
+                                    tint = iconTint.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                floatingActionButton = {
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = 24.dp, end = 8.dp)
+                            .offset(y = (-8).dp)
+                    ) {
+                        FloatingActionButton(
+                            onClick = { onNavigateToAddNote() },
+                            containerColor = Color(0xFF2196F3), // Material Blue
+                            contentColor = Color.White,
+                            shape = CircleShape,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Note",
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                )
+                },
+                floatingActionButtonPosition = FabPosition.End
+            ) { paddingValues ->
+                // Not listesi
+                val filteredNotes = notes.filter { note ->
+                    searchQuery.isEmpty() || note.title.contains(searchQuery, ignoreCase = true) ||
+                            note.content.contains(searchQuery, ignoreCase = true)
+                }
+
+                if (isGridView) {
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalItemSpacing = 20.dp
+                    ) {
+                        items(filteredNotes) { note ->
+                            ModernNoteCard(
+                                note = note,
+                                isGridView = true,
+                                onClick = { onNavigateToNote(note.id) },
+                                onFavoriteClick = { viewModel.toggleFavorite(note) },
+                                isDarkTheme = isDarkTheme
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        items(filteredNotes) { note ->
+                            ModernNoteCard(
+                                note = note,
+                                isGridView = false,
+                                onClick = { onNavigateToNote(note.id) },
+                                onFavoriteClick = { viewModel.toggleFavorite(note) },
+                                isDarkTheme = isDarkTheme
+                            )
+                        }
+                    }
+                }
+
+                // Filtre dialog
+                if (showFilterDialog) {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.toggleFilterDialog() },
+                        title = { Text("Sıralama", style = MaterialTheme.typography.titleLarge) },
+                        containerColor = if (isDarkTheme) Color(0xFF2A2A2A) else Color.White,
+                        titleContentColor = textColor,
+                        textContentColor = contentColor,
+                        shape = RoundedCornerShape(24.dp),
+                        text = {
+                            Column(
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            ) {
+                                SortOption(
+                                    title = "Tarihe göre",
+                                    isSelected = true,
+                                    isDarkTheme = isDarkTheme
+                                ) { viewModel.sortNotes(HomeViewModel.SortOrder.DATE) }
+                                
+                                SortOption(
+                                    title = "Başlığa göre",
+                                    isSelected = false,
+                                    isDarkTheme = isDarkTheme
+                                ) { viewModel.sortNotes(HomeViewModel.SortOrder.TITLE) }
+                                
+                                SortOption(
+                                    title = "Renge göre",
+                                    isSelected = false,
+                                    isDarkTheme = isDarkTheme
+                                ) { viewModel.sortNotes(HomeViewModel.SortOrder.COLOR) }
+                                
+                                SortOption(
+                                    title = "Favorilere göre",
+                                    isSelected = false,
+                                    isDarkTheme = isDarkTheme
+                                ) { viewModel.sortNotes(HomeViewModel.SortOrder.FAVORITE) }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = { viewModel.toggleFilterDialog() }
+                            ) {
+                                Text(
+                                    "Tamam",
+                                    color = Color(0xFF5E35B1),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -547,9 +724,10 @@ fun ModernNoteCard(
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val formattedDate = note.timestamp?.let { dateFormat.format(Date(it)) } ?: ""
     
-    val textColor = if (isDarkTheme) Color.White else Color.Black
-    val contentColor = if (isDarkTheme) Color(0xFFCCCCCC) else Color.Black.copy(alpha = 0.7f)
-    val dateColor = if (isDarkTheme) Color(0xFFAAAAAA) else Color.Black.copy(alpha = 0.5f)
+    // Kart açık renkli olduğu için metinler her zaman siyah olacak
+    val cardTextColor = Color.Black
+    val cardContentColor = Color.Black.copy(alpha = 0.7f)
+    val cardDateColor = Color.Black.copy(alpha = 0.5f)
 
     ElevatedCard(
         modifier = Modifier
@@ -564,7 +742,7 @@ fun ModernNoteCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = noteColor,
-            contentColor = textColor
+            contentColor = cardTextColor
         ),
         elevation = CardDefaults.elevatedCardElevation(
             defaultElevation = 0.dp,
@@ -584,7 +762,7 @@ fun ModernNoteCard(
                     fontWeight = FontWeight.SemiBold,
                     lineHeight = 24.sp
                 ),
-                color = textColor,
+                color = cardTextColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
@@ -598,7 +776,7 @@ fun ModernNoteCard(
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 ),
-                color = contentColor,
+                color = cardContentColor,
                 maxLines = if (isGridView) 4 else 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -612,7 +790,7 @@ fun ModernNoteCard(
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 ),
-                color = dateColor
+                color = cardDateColor
             )
         }
     }
